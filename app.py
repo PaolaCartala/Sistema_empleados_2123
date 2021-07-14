@@ -1,6 +1,7 @@
 from flask import Flask
-from flask import render_template, request
+from flask import render_template, request, redirect
 from flaskext.mysql import MySQL
+from datetime import datetime
 
 app = Flask(__name__) # instanciamos flask
 
@@ -15,13 +16,47 @@ mysql.init_app(app)
 
 @app.route('/') # routeamos
 def index():
-    sql = "INSERT INTO `empleados` (`id`, `nombre`, `correo`, `foto`) VALUES (NULL, 'Venus', 'venusperradeatenas@gmail.com', 'fotodevenus.jpg');" # consulta
+    sql = "SELECT * FROM `empleados`;" # consulta
     conn = mysql.connect() 
     cursor = conn.cursor() # crea el cursor
     cursor.execute(sql) # ejecuta
     conn.commit() # hace commit
+    empleados=cursor.fetchall()
+    
 
-    return render_template('empleados/index.html')
+    return render_template('empleados/index.html', empleados=empleados)
+
+@app.route('/destroy/<int:id>')
+def destroy(id):
+   conn = mysql.connect()
+   cursor=conn.cursor()
+   cursor.execute("DELETE FROM empleados WHERE id=%s", (id))
+   conn.commit()
+   return redirect('/')
+
+@app.route('/edit/<int:id>')
+def edit(id):
+   conn = mysql.connect()
+   cursor=conn.cursor()
+   cursor.execute("SELECT * FROM empleados WHERE id=%s", (id))
+   empleados=cursor.fetchall()
+   conn.commit()
+   return render_template('empleados/edit.html', empleados = empleados)
+
+@app.route('/update', methods=['POST'])
+def update():
+   _nombre = request.form['txtNombre']
+   _correo = request.form['txtCorreo']
+   _foto = request.files['txtFoto']
+   id = request.form['txtID']
+
+   sql = "UPDATE `empleados` SET nombre=%s, correo=%s WHERE id=%s;"
+   datos=(_nombre, _correo, id)
+   conn = mysql.connect() # abro la conexion
+   cursor = conn.cursor()
+   cursor.execute(sql, datos)
+   conn.commit()
+   return redirect('/')
 
 @app.route('/create')
 def create():
@@ -33,8 +68,16 @@ def storage():
    _correo = request.form['txtCorreo']
    _foto = request.files['txtFoto']
 
+   now = datetime.now()
+   tiempo=now.strftime("%Y%H%M%S")
+
+   if _foto.filename !='':
+      nuevoNombreFoto = tiempo + _foto.filename
+      _foto.save("uploads/"+ nuevoNombreFoto)
+
+
    sql = "INSERT INTO `empleados` (`id`, `nombre`, `correo`, `foto`) VALUES (NULL, %s, %s, %s)"
-   datos=(_nombre, _correo, _foto.filename)
+   datos=(_nombre, _correo, nuevoNombreFoto)
    conn = mysql.connect() # abro la conexion
    cursor = conn.cursor()
    cursor.execute(sql, datos)
